@@ -53,4 +53,3 @@ if __name__ == "__main__":
             thread_check = threading.Thread(target=check_boites_alive, daemon=True)
             thread_check.start()
             listen_heartbeats()
-

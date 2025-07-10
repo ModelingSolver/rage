@@ -1,45 +1,51 @@
 import socket
 import json
 import time
+import threading
 
-HEARTBEAT_TIMEOUT = 15  # secondes
-LISTEN_IP = "127.0.0.4"   # IP boîte 4
-LISTEN_PORT = 9998        # port dédié pour heartbeat de boîte 5
+HEARTBEAT_TIMEOUT = 20  # secondes avant de considérer une boîte morte
+LISTEN_IP = "127.0.0.4"
+LISTEN_PORT = 9998
 
-last_heartbeat_box5 = None
+# Dictionnaire pour stocker le dernier timestamp reçu par boîte
+last_heartbeats = {
 
-def listen_heartbeat_box5():
-    global last_heartbeat_box5
+    "BOX5": None,
+}
+
+def check_boites_alive():
+    while True:
+        now = time.time()
+        for boite, last_time in last_heartbeats.items():
+            if last_time is None or (now - last_time) > HEARTBEAT_TIMEOUT:
+                print(f"[CHECKVIE BOX4] ⚠️ {boite} ne répond plus (dernier heartbeat à {last_time})")
+                # Action possible ici
+        time.sleep(5)
+
+def listen_heartbeats():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((LISTEN_IP, LISTEN_PORT))
     sock.settimeout(5)
 
-    print(f"[CHECK5 BOX4] Écoute heartbeat de BOX5 sur {LISTEN_IP}:{LISTEN_PORT}")
+    print(f"[CHECKVIE BOX4] Écoute les heartbeats sur {LISTEN_IP}:{LISTEN_PORT}")
 
     while True:
         try:
             data, addr = sock.recvfrom(1024)
             message = json.loads(data.decode())
-            if message.get("boite") == "BOX5":
-                last_heartbeat_box5 = time.time()
-                print(f"[CHECK5 BOX4] Reçu heartbeat de BOX5")
+            boite = message.get("boite")
+            if boite in last_heartbeats:
+                last_heartbeats[boite] = time.time()
+                print(f"[CHECKVIE BOX4] Reçu heartbeat de {boite}")
         except socket.timeout:
-            pass
+            pass  # Timeout pour permettre de checker les boîtes mortes
         except Exception as e:
-            print(f"[CHECK5 BOX4] Erreur: {e}")
-
-def check_box5_alive():
-    global last_heartbeat_box5
-    while True:
-        now = time.time()
-        if last_heartbeat_box5 is None or (now - last_heartbeat_box5) > HEARTBEAT_TIMEOUT:
-            print(f"[CHECK5 BOX4] ⚠️ BOX5 ne répond plus (dernier heartbeat à {last_heartbeat_box5})")
-            # Ici tu peux décider de lancer le checkvie en backup
-        time.sleep(5)
+            print(f"[CHECKVIE BOX4] Erreur: {e}")
 
 if __name__ == "__main__":
-    import threading
+    print("[CHECKVIE BOX4] Démarrage dans 10 secondes pour laisser démarrer les autres boîtes...")
+    time.sleep(10)  # délai 10s, ajustable selon besoin
 
-    thread_check = threading.Thread(target=check_box5_alive, daemon=True)
+    thread_check = threading.Thread(target=check_boites_alive, daemon=True)
     thread_check.start()
-    listen_heartbeat_box5()
+    listen_heartbeats()
